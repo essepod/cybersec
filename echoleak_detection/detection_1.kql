@@ -22,6 +22,6 @@ OfficeActivity
     | where ActionType in ("OpenUrl","ClickLink","GenerateLink","CreateExternalLink","ShareLink","HttpRequest") // depends on the tenant
     | extend Details=parse_json(AdditionalFields)
     | extend Url = coalesce(tostring(Details.Url), tostring(Details.TargetUrl), tostring(RawEventData), tostring(Details.HttpUrl))
-    | where Url matches regex @"https?://(?!.*(?:microsoft\.com|sharepoint\.com|office\.com|onmicrosoft\.com)).+"
+    | where Url matches regex @"https?:\/\/(?!.*(?:microsoft\.com|sharepoint\.com|office\.com|onmicrosoft\.com)).+"
     | project TimeGenerated, Actor=tostring(AccountUpn), Url
 ) on $left.UserId == $right.Actor and $right.TimeGenerated between (CopilotTime .. CopilotTime + window)
