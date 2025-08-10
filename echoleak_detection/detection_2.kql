@@ -1,6 +1,8 @@
+//This query just checks for unusual "MailItemsAccessed" events after a campain
+
 let horizon = 24h;
 let threshold = 3;
-let extDomains = dynamic(["gmail.com","yahoo.com","outlook.com"]); // escludi/aggiungi domini noti
+let extDomains = dynamic(["gmail.com","yahoo.com","outlook.com"]); // permitted domains to be excluded
 let seed = EmailEvents
 | where TimeGenerated > ago(horizon)
 | where EmailDirection == "Inbound"
