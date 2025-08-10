@@ -1,0 +1,17 @@
+let horizon = 24h;
+let threshold = 3;
+let extDomains = dynamic(["gmail.com","yahoo.com","outlook.com"]); // escludi/aggiungi domini noti
+let seed = EmailEvents
+| where TimeGenerated > ago(horizon)
+| where EmailDirection == "Inbound"
+| extend FromDomain = tostring(split(SenderFromAddress, "@")[1])
+| where FromDomain !endswith_cs "<tuo-dominio>" and FromDomain !in (extDomains)
+| summarize by RecipientEmailAddress, bin(TimeGenerated, 1h);
+seed
+| join kind=inner (
+    OfficeActivity
+    | where TimeGenerated > ago(horizon)
+    | where Operation =~ "MailItemsAccessed" or AuditData has "MailItemsAccessed"
+    | summarize cnt=count() by UserId, bin(TimeGenerated, 1h)
+) on $left.RecipientEmailAddress == $right.UserId and $right.TimeGenerated between ($left.TimeGenerated .. $left.TimeGenerated + 2h)
+| where cnt >= threshold
