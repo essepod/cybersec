@@ -1,0 +1,25 @@
+let lookback = 7d;
+let window = 15m;
+// 1) Copilot interactions con EmailMessage nel contesto e mittente esterno
+OfficeActivity
+| where TimeGenerated > ago(lookback)
+| where Workload has_any ("Microsoft Copilot","Copilot","M365 Copilot") or RecordType == "Copilot"
+| extend AuditData = parse_json(AuditData)
+| extend Accessed = tostring(AuditData.AccessedResources)
+| where Accessed has "EmailMessage"
+| extend Contexts = tostring(AuditData.Contexts), AppHost = tostring(AuditData.AppHost), UserId = tostring(UserId)
+| extend Msgs = parse_json(Accessed)
+| mv-expand Msgs
+| extend From = tostring(Msgs.From), SenderDomain = extract(@"@([^>]+)$", 1, tostring(Msgs.From))
+| where isnotempty(SenderDomain) and SenderDomain !endswith_cs "<tuo-dominio>"  // esterno
+| project CopilotTime=TimeGenerated, UserId, AppHost, SenderDomain, MessageId=tostring(Msgs.Id), ThreadId=tostring(AuditData.ThreadId)
+// 2) Entro N minuti: attività che includono generazione/accesso a URL esterni in CloudAppEvents
+| join kind=leftsemi (
+    CloudAppEvents
+    | where TimeGenerated > ago(lookback)
+    | where ActionType in ("OpenUrl","ClickLink","GenerateLink","CreateExternalLink","ShareLink","HttpRequest") // variano per tenant
+    | extend Details=parse_json(AdditionalFields)
+    | extend Url = coalesce(tostring(Details.Url), tostring(Details.TargetUrl), tostring(RawEventData), tostring(Details.HttpUrl))
+    | where Url matches regex @"https?://(?!.*(?:microsoft\.com|sharepoint\.com|office\.com|onmicrosoft\.com)).+"
+    | project TimeGenerated, Actor=tostring(AccountUpn), Url
+) on $left.UserId == $right.Actor and $right.TimeGenerated between (CopilotTime .. CopilotTime + window)
