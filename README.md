@@ -1,2 +1,2 @@
 # cybersec
-Fancy cybersecurity staff
+Cybersecurity staff
